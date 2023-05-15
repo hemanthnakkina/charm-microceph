@@ -1,6 +1,6 @@
 list-disks:
   description: |
-    List both OSDs and unpartitioned disks on the
+    List OSDs on the cluster and unpartitioned disks on the
     node.
 add-osd:
   description: |
