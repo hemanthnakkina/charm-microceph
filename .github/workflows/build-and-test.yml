@@ -2,6 +2,7 @@ name: Build/Test
 
 on:
   workflow_call:
+  workflow_dispatch: null
 
 jobs:
   lint:
@@ -27,25 +28,57 @@ jobs:
       - name: Run tests
         run: tox -e py3
 
-  # Build charm is excluded as it is one of the steps in
-  # integration test
-  integration-test:
-    name: Integration tests
+  build:
+    name: Build the charm
     runs-on: ubuntu-latest
-    needs:
-      - lint
-      - unit-test
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+      - name: Build charm(s)
+        id: builder
+        run: |
+          sudo snap refresh
+          sudo snap set lxd daemon.group=adm
+          sudo lxd init --auto
+          sudo snap install charmcraft --classic
+          charmcraft pack -v
+          ./rename.sh
+      - name: Upload built charm
+        uses: actions/upload-artifact@v3
+        with:
+          name: charms
+          path: "*.charm"
+
+  functional-test:
+    needs:
+      - lint
+      - unit-test
+      - build
+    name: Functional test
+    runs-on: [self-hosted, xlarge]
+    steps:
+
+      - name: Download charm
+        uses: actions/download-artifact@v3
+        with:
+          name: charms
+          path: /home/runner
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
       - name: Install dependencies
         run: python -m pip install tox
-      - name: Setup lxd controller
-        # TODO: Replace with custom image on self-hosted runner
-        uses: charmed-kubernetes/actions-operator@main
-        with:
-          juju-channel: 3.1/stable
-          provider: lxd
-      - name: Run integration tests
-        run: tox -e integration
+
+      - name: Smoke test
+        run: |
+          sudo snap install openstack --channel 2023.2
+          sunbeam prepare-node-script | bash -x
+          sg snap_daemon "sunbeam cluster bootstrap --accept-defaults"
+          juju refresh microceph --path ./microceph.charm
+          juju status
 
