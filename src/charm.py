@@ -322,6 +322,10 @@ class MicroCephCharm(sunbeam_charm.OSBaseOperatorCharm):
             event.defer()
             return
 
+        if not self.unit.is_leader():
+            logger.debug("Skipping configure ceph as this unit is not leader")
+            return
+
         default_rf = self.model.config.get("default-pool-size")
         try:
             microceph.set_pool_size("", str(default_rf))
