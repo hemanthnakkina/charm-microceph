@@ -484,6 +484,8 @@ class MicroCephCharm(sunbeam_charm.OSBaseOperatorCharm):
             "rgw_keystone_service_token_enabled",
             "rgw_keystone_service_token_accepted_roles",
             "rgw_s3_auth_use_keystone",
+            "rgw_swift_account_in_url",
+            "rgw_keystone_implicit_tenants",
         ]
 
         logger.info("Removing RGW Cluster configs")
@@ -513,6 +515,14 @@ class MicroCephCharm(sunbeam_charm.OSBaseOperatorCharm):
                     "rgw_keystone_service_token_accepted_roles": self.id_svc.interface.admin_role,
                     "rgw_s3_auth_use_keystone": str(True).lower(),
                 }
+                namespace_projects = self.leader_get("namespace-projects")
+                if namespace_projects and json.loads(namespace_projects):
+                    configs.update(
+                        {
+                            "rgw_swift_account_in_url": str(True).lower(),
+                            "rgw_keystone_implicit_tenants": str(True).lower(),
+                        }
+                    )
                 logger.info("Updating RGW Cluster configs")
                 microceph.update_cluster_configs(configs)
             except (AttributeError, KeyError) as e:

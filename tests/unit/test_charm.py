@@ -175,6 +175,52 @@ class TestCharm(test_utils.CharmTestCase):
         # Verify if update_config for RGW configs is called
         self.assertEqual(cclient.from_socket().cluster.update_config.call_count, 13)
 
+    @patch.object(microceph, "Client")
+    @patch.object(microceph, "subprocess")
+    @patch("builtins.open", new_callable=mock_open, read_data="mon host dummy-ip")
+    def test_all_relations_with_enable_rgw_config_and_namespace_projects(
+        self, mock_file, subprocess, cclient
+    ):
+        """Test all the charms relations."""
+        self.harness.set_leader()
+        self.harness.update_config(
+            {"snap-channel": "1.0/stable", "enable-rgw": "*", "namespace-projects": True}
+        )
+        test_utils.add_complete_peer_relation(self.harness)
+        self.add_complete_identity_relation(self.harness)
+        self.add_complete_ingress_relation(self.harness)
+        cclient().cluster.list_services.return_value = []
+        subprocess.run.assert_any_call(
+            [
+                "microceph",
+                "cluster",
+                "bootstrap",
+                "--public-network",
+                "10.0.0.0/24",
+                "--cluster-network",
+                "10.0.0.0/24",
+                "--microceph-ip",
+                "10.0.0.10",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=180,
+        )
+        subprocess.run.assert_any_call(
+            [
+                "microceph",
+                "enable",
+                "rgw",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=180,
+        )
+        # Verify if update_config for RGW configs is called
+        self.assertEqual(cclient.from_socket().cluster.update_config.call_count, 15)
+
     @patch.object(microceph, "subprocess")
     @patch("ceph.check_output")
     def test_add_osds_action_with_device_id(self, _chk, subprocess):
