@@ -382,7 +382,8 @@ jobs:
         run: |
           set -eux
           date
-          target="reef/stable"
+          # There is no squid stable yet.
+          target="squid/edge"
           juju config microceph snap-channel=$target
           sleep 60
           # Initial wait
@@ -414,7 +415,7 @@ jobs:
       - name: Test that downgrade blocks
         run: |
           set -eux
-          juju config microceph snap-channel=quincy/stable
+          juju config microceph snap-channel=reef/stable
           juju wait-for application microceph --query='status=="blocked"'
           juju status
           juju status blocked | egrep '^microceph/.*Cannot upgrade.*to quincy/stable'
