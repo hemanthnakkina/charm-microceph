@@ -7,6 +7,7 @@ tenacity
 jinja2
 requests<2.32 # https://github.com/psf/requests/issues/6707 (similar issue with http+unix)
 git+https://opendev.org/openstack/sunbeam-charms#egg=ops-sunbeam&subdirectory=ops-sunbeam
+git+https://github.com/openstack/charms.ceph#egg=charms_ceph
 
 # Used for communication with snapd socket
 requests-unixsocket # Apache 2
