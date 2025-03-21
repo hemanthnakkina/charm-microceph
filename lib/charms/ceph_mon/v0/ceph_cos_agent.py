@@ -28,16 +28,6 @@ LIBPATCH = 1
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CEPH_JOB = {
-    "metrics_path": "/metrics",
-    "static_configs": [{"targets": ["*:9283"]}],
-}
-DEFAULT_CEPH_METRICS_ENDPOINT = {
-    "path": "/metrics",
-    "port": 9283,
-}
-DEFAULT_ALERT_RULES_RELATIVE_PATH = "files/prometheus_alert_rules"
-
 
 class CephCOSAgentProvider(cos_agent.COSAgentProvider):
 
@@ -116,6 +106,7 @@ class CephCOSAgentProvider(cos_agent.COSAgentProvider):
 
         ]
 
+    # TODO: switch to charms_ceph sourced util function
     @tenacity.retry(
         wait=tenacity.wait_exponential(multiplier=1, max=10),
         reraise=True,
