@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 class CephCOSAgentProvider(cos_agent.COSAgentProvider):
 
     def __init__(self, charm):
+        logger.info("Entered CEPH COS AGENT INIT")
         super().__init__(
             charm,
             metrics_rules_dir="./files/prometheus_alert_rules",
@@ -45,31 +46,60 @@ class CephCOSAgentProvider(cos_agent.COSAgentProvider):
 
     def _on_refresh(self, event):
         """Enable prometheus on relation change"""
-        if not ceph_utils.is_bootstrapped():
-            logger.debug("not bootstrapped, defer _on_refresh: %s", event)
-            event.defer()
+        logger.info("Entered CEPH COS AGENT REFRESH")
+        
+        if not self._charm.unit.is_leader():
+            logger.debug("Not the charm leader, skipping refresh cb.")
             return
-        logger.debug("refreshing cos_agent relation")
-        if self._charm.unit.is_leader():
-            self.mgr_config_set_rbd_stats_pools()
+
+        if hasattr(self._charm, "_cos_agent_refresh_cb") and callable(self._charm._cos_agent_refresh_cb):
+            self._charm._cos_agent_refresh_cb(event) 
+        else:
+            # ceph mon failback
+            if not ceph_utils.is_bootstrapped():
+                logger.debug("not bootstrapped, defer _on_refresh: %s", event)
+                event.defer()
+                return
+
+            logger.debug("refreshing cos_agent relation")
             ceph_utils.mgr_enable_module("prometheus")
+
+        self.mgr_config_set_rbd_stats_pools()
         super()._on_refresh(event)
 
     def _on_relation_departed(self, event):
         """Disable prometheus on depart of relation"""
-        if self._charm.unit.is_leader() and ceph_utils.is_bootstrapped():
-            logger.debug(
-                "is_leader and is_bootstrapped, running rel departed: %s",
-                event,
-            )
-            ceph_utils.mgr_disable_module("prometheus")
-            logger.debug("module_disabled")
+        if self._charm.unit.is_leader():
+            logger.debug("Not the charm leader, skipping relation_departed: %s.", event)
+
+        if hasattr(self._charm, "_cos_agent_departed_cb") and callable(self._charm._cos_agent_departed_cb):
+            self._charm._cos_agent_departed_cb(event)
+        else:
+            # ceph mon fallback
+            if ceph_utils.is_bootstrapped():
+                logger.debug(
+                    "is_leader and is_bootstrapped, running rel departed: %s",
+                    event,
+                )
+                ceph_utils.mgr_disable_module("prometheus")
+        logger.debug("module_disabled")
 
     def _custom_scrape_configs(self):
         fqdn = socket.getfqdn()
         fqdn_parts = fqdn.split('.')
         domain = '.'.join(fqdn_parts[1:]) if len(fqdn_parts) > 1 else fqdn
         return [
+            # {
+            #     "static_configs":[
+            #         {
+            #             "targets": ["localhost"],
+            #             "labels": {
+            #                     "job": "ceph_logs",
+            #                     "__path__": "/var/snap/microceph/common/logs/*log"
+            #                 }
+            #             }
+            #     ]
+            # },
             {
                 "metrics_path": "/metrics",
                 "static_configs": [{"targets": ["localhost:9283"]}],
@@ -114,11 +144,9 @@ class CephCOSAgentProvider(cos_agent.COSAgentProvider):
     def mgr_config_set_rbd_stats_pools(self):
         """Update ceph mgr config with the value from rbd-status-pools config
         """
-        if self._charm.unit.is_leader() and ceph_utils.is_bootstrapped():
-            rbd_stats_pools = self._charm.model.config.get('rbd-stats-pools')
-            if rbd_stats_pools:
-                ceph_utils.mgr_config_set(
-                    'mgr/prometheus/rbd_stats_pools',
-                    rbd_stats_pools
-                )
-
+        rbd_stats_pools = self._charm.model.config.get('rbd-stats-pools')
+        if rbd_stats_pools:
+            ceph_utils.mgr_config_set(
+                'mgr/prometheus/rbd_stats_pools',
+                rbd_stats_pools
+            )

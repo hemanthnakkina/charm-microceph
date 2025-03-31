@@ -23,6 +23,7 @@ import subprocess
 from typing import Tuple
 
 import requests
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 from microceph_client import Client, UnrecognizedClusterConfigOption
 
@@ -336,6 +337,53 @@ def set_pool_size(pools: str, size: int):
     cmd = ["sudo", "microceph", "pool", "set-rf", "--size", str(size)]
     cmd.extend(pools_list)
     _run_cmd(cmd)
+
+
+@retry(wait=wait_fixed(5), stop=stop_after_attempt(10))
+def list_mgr_modules() -> dict:
+    """Returns a python dict of mgr modules.
+
+    available keys:
+       1. disabled_modules
+       2. always_on_modules
+       3. enabled_modules
+    """
+    cmd = ["ceph", "mgr", "module", "ls", "--format", "json"]
+    return json.loads(_run_cmd(cmd=cmd))
+
+
+def enable_mgr_module(module: str):
+    """Enable requested ceph mgr module."""
+    disabled_modules = [
+        module_info["name"] for module_info in list_mgr_modules()["disabled_modules"]
+    ]
+    if module not in disabled_modules:
+        logger.info("nothing to do, %s module is not disabled", module)
+        return
+
+    cmd = ["ceph", "mgr", "module", "enable", module]
+    _run_cmd(cmd=cmd)
+
+
+def disable_mgr_module(module: str):
+    """Disable requested ceph mgr module."""
+    enabled_modules = list_mgr_modules()["enabled_modules"]
+    if module not in enabled_modules:
+        logger.info("nothing to do, %s module is not enabled or is always on", module)
+        return
+
+    cmd = ["ceph", "mgr", "module", "disable", module]
+    _run_cmd(cmd=cmd)
+
+
+def enable_ceph_monitoring():
+    """Enable Monitoring for ceph cluster."""
+    enable_mgr_module("prometheus")
+
+
+def disable_ceph_monitoring():
+    """Disable Monitoring for ceph cluster."""
+    disable_mgr_module("prometheus")
 
 
 class CephHealth(enum.Enum):

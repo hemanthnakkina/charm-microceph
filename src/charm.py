@@ -70,6 +70,7 @@ class MicroCephCharm(sunbeam_charm.OSBaseOperatorCharm):
         """Run constructor."""
         super().__init__(framework)
 
+        logger.info("Entered CEPH COS AGENT PRE-INIT")
         # Initialise Modules.
         self.storage = StorageHandler(self)
         self.cluster_nodes = cluster.ClusterNodes(self)
@@ -673,6 +674,29 @@ class MicroCephCharm(sunbeam_charm.OSBaseOperatorCharm):
 
             if self.traefik_route_rgw.ready:
                 self._update_service_endpoints()
+
+    def _cos_agent_refresh_cb(self, event):
+        """Callback for cos-agent relation change."""
+        logger.info("Entered CEPH COS AGENT REFRESH")
+
+        if not self.ready_for_service():
+            logger.debug("not bootstrapped, defer _on_refresh: %s", event)
+            event.defer()
+            return
+
+        logger.debug("refreshing cos_agent relation")
+        microceph.enable_ceph_monitoring()
+
+    def _cos_agent_departed_cb(self, event):
+        """Callback for cos-agent relation departed event."""
+        logger.info("Entered CEPH COS AGENT DEPARTED")
+
+        if not self.ready_for_service():
+            logger.debug("not bootstrapped, skipping relation_deparated: %s", event)
+            return
+
+        logger.debug("disabling cos_agent relation.")
+        microceph.disable_ceph_monitoring()
 
 
 if __name__ == "__main__":  # pragma: no cover
