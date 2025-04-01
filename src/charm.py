@@ -26,13 +26,14 @@ from pathlib import Path
 from socket import gethostname
 from typing import List
 
-import charms.operator_libs_linux.v2.snap as snap
 import netifaces
 import ops.framework
 import ops_sunbeam.charm as sunbeam_charm
 import ops_sunbeam.guard as sunbeam_guard
 import ops_sunbeam.relation_handlers as sunbeam_rhandlers
 import requests
+from charms.ceph_mon.v0 import ceph_cos_agent
+from charms.operator_libs_linux.v2 import snap
 from ops.main import main
 
 import ceph
@@ -71,12 +72,14 @@ class MicroCephCharm(sunbeam_charm.OSBaseOperatorCharm):
         """Run constructor."""
         super().__init__(framework)
 
+        logger.info("Entered CEPH COS AGENT PRE-INIT")
         # Initialise Modules.
         self.storage = StorageHandler(self)
         self.cluster_nodes = cluster.ClusterNodes(self)
         self.cluster_upgrades = cluster.ClusterUpgrades(self)
         self.maintenance = maintenance.Maintenance(self)
         self.rgw = RadosGWHandler(self)
+        self.cos_agent = ceph_cos_agent.CephCOSAgentProvider(self)
 
         # Initialise handlers for events.
         self.framework.observe(self.on.install, self._on_install)
@@ -681,6 +684,29 @@ class MicroCephCharm(sunbeam_charm.OSBaseOperatorCharm):
 
             if self.traefik_route_rgw.ready:
                 self._update_service_endpoints()
+
+    def _cos_agent_refresh_cb(self, event):
+        """Callback for cos-agent relation change."""
+        logger.info("Entered CEPH COS AGENT REFRESH")
+
+        if not self.ready_for_service():
+            logger.debug("not bootstrapped, defer _on_refresh: %s", event)
+            event.defer()
+            return
+
+        logger.debug("refreshing cos_agent relation")
+        microceph.enable_ceph_monitoring()
+
+    def _cos_agent_departed_cb(self, event):
+        """Callback for cos-agent relation departed event."""
+        logger.info("Entered CEPH COS AGENT DEPARTED")
+
+        if not self.ready_for_service():
+            logger.debug("not bootstrapped, skipping relation_deparated: %s", event)
+            return
+
+        logger.debug("disabling cos_agent relation.")
+        microceph.disable_ceph_monitoring()
 
 
 if __name__ == "__main__":  # pragma: no cover
