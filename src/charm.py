@@ -26,13 +26,14 @@ from pathlib import Path
 from socket import gethostname
 from typing import List
 
-import charms.operator_libs_linux.v2.snap as snap
 import netifaces
 import ops.framework
 import ops_sunbeam.charm as sunbeam_charm
 import ops_sunbeam.guard as sunbeam_guard
 import ops_sunbeam.relation_handlers as sunbeam_rhandlers
 import requests
+from charms.ceph_mon.v0 import ceph_cos_agent
+from charms.operator_libs_linux.v2 import snap
 from ops.main import main
 
 import ceph
@@ -69,11 +70,17 @@ class MicroCephCharm(sunbeam_charm.OSBaseOperatorCharm):
         """Run constructor."""
         super().__init__(framework)
 
+        logger.info("Entered CEPH COS AGENT PRE-INIT")
         # Initialise Modules.
         self.storage = StorageHandler(self)
         self.cluster_nodes = cluster.ClusterNodes(self)
         self.cluster_upgrades = cluster.ClusterUpgrades(self)
         self.rgw = RadosGWHandler(self)
+        self.cos_agent = ceph_cos_agent.CephCOSAgentProvider(
+            self,
+            refresh_cb=microceph.cos_agent_refresh_cb,
+            departed_cb=microceph.cos_agent_departed_cb,
+        )
 
         # Initialise handlers for events.
         self.framework.observe(self.on.install, self._on_install)
