@@ -70,7 +70,6 @@ class MicroCephCharm(sunbeam_charm.OSBaseOperatorCharm):
         """Run constructor."""
         super().__init__(framework)
 
-        logger.info("Entered CEPH COS AGENT PRE-INIT")
         # Initialise Modules.
         self.storage = StorageHandler(self)
         self.cluster_nodes = cluster.ClusterNodes(self)
@@ -366,16 +365,8 @@ class MicroCephCharm(sunbeam_charm.OSBaseOperatorCharm):
 
     def ready_for_service(self) -> bool:
         """Check if service is ready or not."""
-        if not snap.SnapCache()["microceph"].present:
-            logger.warning("Snap microceph not installed yet.")
-            return False
-
-        if not microceph.is_cluster_member(gethostname()):
-            logger.warning("Microceph not bootstrapped yet.")
-            return False
-
-        if not ceph.is_quorum():
-            logger.debug("Ceph cluster not in quorum, not ready yet")
+        if not microceph.is_ready():
+            logger.warning("microceph snap not ready for service yet.")
             return False
 
         # ready for service if leader has been announced.
